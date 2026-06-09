@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Présence ESSEC — Reconnaissance faciale</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f8f8f6; --surface: #ffffff; --surface2: #f2f1ee;
+      --border: rgba(0,0,0,0.1); --border2: rgba(0,0,0,0.18);
+      --text: #1a1a18; --text2: #6b6b66; --text3: #9b9b96;
+      --green: #0f6e56; --green-bg: #e1f5ee; --green-border: #9fe1cb;
+      --red: #993c1d; --red-bg: #faece7; --red-border: #f5c4b3;
+      --purple-bg: #eeedfe; --purple-text: #3c3489; --accent: #534ab7;
+      --radius: 10px; --radius-sm: 6px;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 15px; line-height: 1.5; }
+    header { background: var(--surface); border-bottom: 0.5px solid var(--border); padding: 0 2rem; height: 58px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; }
+    .logo-icon { width: 30px; height: 30px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .header-badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; background: var(--purple-bg); color: var(--purple-text); font-weight: 500; }
+    main { max-width: 860px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+    .page-title { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+    .page-sub { font-size: 14px; color: var(--text2); margin-bottom: 2rem; }
+    .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+    @media (max-width: 600px) { .upload-grid { grid-template-columns: 1fr; } }
+    .upload-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+    .step-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; }
+    .upload-card h2 { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+    .drop-zone { border: 1.5px dashed var(--border2); border-radius: var(--radius-sm); padding: 1.5rem 1rem; text-align: center; cursor: pointer; transition: background .15s, border-color .15s; }
+    .drop-zone:hover { background: var(--surface2); border-color: var(--accent); }
+    .drop-zone input { display: none; }
+    .drop-icon { width: 36px; height: 36px; margin: 0 auto 10px; color: var(--text3); }
+    .drop-zone .dz-title { font-size: 13px; color: var(--text2); display: block; }
+    .drop-zone .dz-sub { font-size: 11px; color: var(--text3); margin-top: 3px; display: block; }
+    .status-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+    .pill-default { background: var(--surface2); color: var(--text2); border: 0.5px solid var(--border); }
+    .pill-ok { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-border); }
+    .pill-err { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
+    .class-preview { width: 100%; border-radius: var(--radius-sm); margin-top: 10px; max-height: 160px; object-fit: cover; display: none; }
+    .analyze-btn { width: 100%; padding: 13px; background: var(--accent); color: white; border: none; border-radius: var(--radius); font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: opacity .15s, transform .1s; margin-bottom: 1.5rem; }
+    .analyze-btn:hover:not(:disabled) { opacity: .88; }
+    .analyze-btn:active:not(:disabled) { transform: scale(.99); }
+    .analyze-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .loader { display: none; align-items: center; gap: 12px; padding: 1rem 1.5rem; background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 1.5rem; font-size: 14px; color: var(--text2); }
+    .loader.on { display: flex; }
+    .spinner { width: 20px; height: 20px; border: 2.5px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .results-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1.5rem; display: none; }
+    .results-card.on { display: block; }
+    .results-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 10px; }
+    .results-header h2 { font-size: 17px; font-weight: 600; }
+    .export-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: var(--surface); border: 0.5px solid var(--border2); border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; color: var(--text); transition: background .15s; }
+    .export-btn:hover { background: var(--surface2); }
+    .stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 1.25rem; }
+    .stat-card { background: var(--surface2); border-radius: var(--radius-sm); padding: 14px; text-align: center; }
+    .stat-card .val { font-size: 28px; font-weight: 600; }
+    .stat-card .lbl { font-size: 11px; color: var(--text3); margin-top: 2px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+    .stat-card.present .val { color: var(--green); }
+    .stat-card.absent .val { color: var(--red); }
+    .ai-note { font-size: 12px; color: #7a6000; background: #fffbe6; border: 0.5px solid #f0d070; border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 1rem; }
+    .toolbar { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; flex-wrap: wrap; }
+    .filter-tabs { display: flex; gap: 4px; }
+    .ftab { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border); background: var(--surface); color: var(--text2); transition: all .12s; }
+    .ftab.active { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+    .search-input { flex: 1; min-width: 160px; padding: 6px 10px; font-size: 13px; border: 0.5px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); outline: none; transition: border-color .15s; }
+    .search-input:focus { border-color: var(--accent); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; padding: 7px 10px; border-bottom: 0.5px solid var(--border); }
+    td { padding: 9px 10px; border-bottom: 0.5px solid var(--border); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+    .avatar-circle { width: 30px; height: 30px; border-radius: 50%; background: var(--purple-bg); color: var(--purple-text); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+    .name-cell { font-weight: 500; }
+    .status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+    .status-badge.present { background: var(--green-bg); color: var(--green); }
+    .status-badge.absent { background: var(--red-bg); color: var(--red); }
+    .conf-wrap { display: flex; align-items: center; gap: 8px; }
+    .conf-bar { width: 70px; height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+    .conf-fill { height: 100%; border-radius: 3px; background: #1d9e75; }
+    .conf-fill.low { background: #d85a30; }
+    .conf-text { font-size: 11px; color: var(--text3); }
+    footer { text-align: center; padding: 2rem; font-size: 12px; color: var(--text3); border-top: 0.5px solid var(--border); margin-top: 3rem; }
+    svg.icon { width: 18px; height: 18px; display: inline-block; vertical-align: middle; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+    </div>
+    Présence ESSEC
+  </div>
+  <span class="header-badge">claude-sonnet-4-5</span>
+</header>
+
+<main>
+  <h1 class="page-title">Prise de présence automatique</h1>
+  <p class="page-sub">Importez le PDF de la liste des étudiants (my.essec.fr) et une photo de la classe pour générer automatiquement la feuille de présence.</p>
+
+  <div class="upload-grid">
+    <div class="upload-card">
+      <div class="step-label">Étape 1</div>
+      <h2>Liste des étudiants (PDF)</h2>
+      <div class="drop-zone" id="pdfZone">
+        <div class="drop-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+          </svg>
+        </div>
+        <span class="dz-title">Cliquer pour importer le PDF</span>
+        <span class="dz-sub">Captures d'écran my.essec.fr (photos + noms)</span>
+        <input type="file" id="pdfInput" accept="application/pdf">
+      </div>
+      <div class="status-pills" id="pdfStatus"></div>
+    </div>
+
+    <div class="upload-card">
+      <div class="step-label">Étape 2</div>
+      <h2>Photo de la classe</h2>
+      <div class="drop-zone" id="classZone">
+        <div class="drop-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+        </div>
+        <span class="dz-title">Cliquer pour importer la photo</span>
+        <span class="dz-sub">JPG ou PNG — prise pendant la séance</span>
+        <input type="file" id="classInput" accept="image/*">
+      </div>
+      <img id="classPreview" class="class-preview" alt="Aperçu">
+    </div>
+  </div>
+
+  <button class="analyze-btn" id="analyzeBtn" disabled>
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    Analyser la présence
+  </button>
+
+  <div class="loader" id="loader">
+    <div class="spinner"></div>
+    <span id="loaderMsg">Analyse en cours…</span>
+  </div>
+
+  <div class="results-card" id="resultsCard">
+    <div class="results-header">
+      <h2>Résultats de présence</h2>
+      <button class="export-btn" id="exportBtn">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Exporter CSV
+      </button>
+    </div>
+    <div class="stats-row" id="statsRow"></div>
+    <p class="ai-note" id="aiNotes" style="display:none"></p>
+    <div class="toolbar">
+      <div class="filter-tabs" id="filterTabs">
+        <button class="ftab active" data-filter="all">Tous</button>
+        <button class="ftab" data-filter="present">Présents</button>
+        <button class="ftab" data-filter="absent">Absents</button>
+      </div>
+      <input type="text" class="search-input" id="searchInput" placeholder="Rechercher…">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px"></th>
+            <th>Étudiant</th>
+            <th>Statut</th>
+            <th>Confiance</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<footer>Outil interne ESSEC — Données envoyées uniquement à l'API Anthropic via un proxy sécurisé.</footer>
+
+<script>
+(function () {
+  var pdfB64 = null;
+  var classB64 = null;
+  var classType = 'image/jpeg';
+  var allResults = [];
+  var activeFilter = 'all';
+
+  var pdfInput     = document.getElementById('pdfInput');
+  var classInput   = document.getElementById('classInput');
+  var pdfZone      = document.getElementById('pdfZone');
+  var classZone    = document.getElementById('classZone');
+  var pdfStatus    = document.getElementById('pdfStatus');
+  var classPreview = document.getElementById('classPreview');
+  var analyzeBtn   = document.getElementById('analyzeBtn');
+  var loader       = document.getElementById('loader');
+  var loaderMsg    = document.getElementById('loaderMsg');
+  var resultsCard  = document.getElementById('resultsCard');
+  var statsRow     = document.getElementById('statsRow');
+  var aiNotes      = document.getElementById('aiNotes');
+  var tableBody    = document.getElementById('tableBody');
+  var searchInput  = document.getElementById('searchInput');
+  var exportBtn    = document.getElementById('exportBtn');
+  var filterTabs   = document.getElementById('filterTabs');
+
+  pdfZone.addEventListener('click', function () { pdfInput.click(); });
+  classZone.addEventListener('click', function () { classInput.click(); });
+
+  pdfInput.addEventListener('change', function (e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    pdfStatus.innerHTML = '<span class="pill pill-default">Lecture…</span>';
+    var reader = new FileReader();
+    reader.onload = function (ev) {
+      pdfB64 = ev.target.result.split(',')[1];
+      pdfStatus.innerHTML = '<span class="pill pill-ok">✓ ' + file.name + '</span>';
+      checkReady();
+    };
+    reader.onerror = function () {
+      pdfStatus.innerHTML = '<span class="pill pill-err">Erreur de lecture</span>';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  classInput.addEventListener('change', function (e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    classType = file.type || 'image/jpeg';
+    var reader = new FileReader();
+    reader.onload = function (ev) {
+      classB64 = ev.target.result.split(',')[1];
+      classPreview.src = ev.target.result;
+      classPreview.style.display = 'block';
+      checkReady();
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function checkReady() {
+    analyzeBtn.disabled = !(pdfB64 && classB64);
+  }
+
+  // Calls the Netlify serverless function (same origin = no CORS)
+  function callProxy(payload, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/.netlify/functions/claude-proxy', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onload = function () {
+      try {
+        var data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          var text = data.content.map(function (x) { return x.text || ''; }).join('');
+          callback(null, text);
+        } else {
+          callback(new Error(data.error && data.error.message ? data.error.message : 'Erreur HTTP ' + xhr.status));
+        }
+      } catch (e) {
+        callback(new Error('Réponse invalide du serveur'));
+      }
+    };
+    xhr.onerror = function () { callback(new Error('Impossible de contacter le proxy.')); };
+    xhr.send(JSON.stringify(payload));
+  }
+
+  analyzeBtn.addEventListener('click', function () {
+    analyzeBtn.disabled = true;
+    resultsCard.classList.remove('on');
+    loader.classList.add('on');
+
+    // Step 1 — extract student names from PDF
+    loaderMsg.textContent = 'Étape 1 / 2 — Extraction de la liste des étudiants…';
+
+    callProxy({
+      model: 'claude-sonnet-4-5',
+      max_tokens: 2000,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfB64 } },
+          { type: 'text', text: 'Ce PDF contient des captures d\'écran du portail my.essec.fr montrant la liste des étudiants avec leur photo de profil ronde et leur nom à côté. Extrais TOUS les noms visibles sur toutes les pages. Réponds UNIQUEMENT en JSON valide sans backticks ni preamble : {"students": ["NOM Prenom", "NOM2 Prenom2", ...]}' }
+        ]
+      }]
+    }, function (err, raw) {
+      if (err) return handleError(err);
+
+      var students;
+      try {
+        students = JSON.parse(raw.replace(/```json|```/g, '').trim()).students;
+      } catch (e) {
+        return handleError(new Error('Impossible de parser la liste : ' + raw.slice(0, 150)));
+      }
+      if (!students || students.length === 0) return handleError(new Error('Aucun étudiant extrait du PDF.'));
+
+      // Step 2 — identify present students in class photo
+      loaderMsg.textContent = 'Étape 2 / 2 — Identification de ' + students.length + ' étudiants dans la photo…';
+
+      var prompt = 'Tu es un système de reconnaissance faciale pour une école de commerce.\n\n'
+        + 'Le document PDF contient les photos de profil rondes et les noms de tous les étudiants inscrits.\n'
+        + 'L\'image jointe est une photo prise dans la salle de classe pendant le cours.\n\n'
+        + 'Liste des ' + students.length + ' étudiants inscrits :\n'
+        + students.map(function (s, i) { return (i + 1) + '. ' + s; }).join('\n')
+        + '\n\nCompare soigneusement les visages des photos de profil du PDF avec ceux visibles dans la photo de classe. Détermine qui est présent.'
+        + '\n\nRéponds UNIQUEMENT en JSON valide sans backticks ni preamble :\n'
+        + '{"results":[{"name":"NOM Prenom","present":true,"confidence":85},...], "detected_faces":18, "notes":"remarque optionnelle"}\n\n'
+        + 'confidence = 0 si absent, sinon score de certitude 0-100.';
+
+      callProxy({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 4000,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfB64 } },
+            { type: 'image', source: { type: 'base64', media_type: classType, data: classB64 } },
+            { type: 'text', text: prompt }
+          ]
+        }]
+      }, function (err2, raw2) {
+        if (err2) return handleError(err2);
+
+        var parsed;
+        try {
+          parsed = JSON.parse(raw2.replace(/```json|```/g, '').trim());
+        } catch (e) {
+          return handleError(new Error('Impossible de parser les résultats : ' + raw2.slice(0, 150)));
+        }
+
+        allResults = parsed.results || [];
+        displayResults(parsed);
+        loader.classList.remove('on');
+        analyzeBtn.disabled = false;
+      });
+    });
+  });
+
+  function handleError(err) {
+    loaderMsg.textContent = '⚠ Erreur : ' + err.message;
+    setTimeout(function () { loader.classList.remove('on'); }, 7000);
+    analyzeBtn.disabled = false;
+  }
+
+  function displayResults(parsed) {
+    var present = allResults.filter(function (r) { return r.present; }).length;
+    var absent  = allResults.filter(function (r) { return !r.present; }).length;
+    statsRow.innerHTML =
+      '<div class="stat-card present"><div class="val">' + present + '</div><div class="lbl">Présents</div></div>' +
+      '<div class="stat-card absent"><div class="val">' + absent + '</div><div class="lbl">Absents</div></div>' +
+      '<div class="stat-card"><div class="val">' + allResults.length + '</div><div class="lbl">Inscrits</div></div>';
+    if (parsed.notes) { aiNotes.textContent = '⚠ ' + parsed.notes; aiNotes.style.display = 'block'; }
+    else { aiNotes.style.display = 'none'; }
+    renderTable(allResults);
+    resultsCard.classList.add('on');
+    searchInput.value = '';
+    activeFilter = 'all';
+    document.querySelectorAll('.ftab').forEach(function (t) { t.classList.remove('active'); });
+    document.querySelector('.ftab[data-filter="all"]').classList.add('active');
+  }
+
+  function renderTable(rows) {
+    tableBody.innerHTML = '';
+    rows.forEach(function (r) {
+      var initials = r.name.split(' ').map(function (w) { return w[0] || ''; }).join('').slice(0, 2).toUpperCase();
+      var confHtml = r.present
+        ? '<div class="conf-wrap"><div class="conf-bar"><div class="conf-fill' + (r.confidence < 70 ? ' low' : '') + '" style="width:' + r.confidence + '%"></div></div><span class="conf-text">' + r.confidence + '%</span></div>'
+        : '<span class="conf-text">—</span>';
+      var tr = document.createElement('tr');
+      tr.dataset.name   = r.name.toLowerCase();
+      tr.dataset.status = r.present ? 'present' : 'absent';
+      tr.innerHTML = '<td><div class="avatar-circle">' + initials + '</div></td>'
+        + '<td class="name-cell">' + r.name + '</td>'
+        + '<td><span class="status-badge ' + (r.present ? 'present' : 'absent') + '">' + (r.present ? '✓ Présent' : '✗ Absent') + '</span></td>'
+        + '<td>' + confHtml + '</td>';
+      tableBody.appendChild(tr);
+    });
+  }
+
+  filterTabs.addEventListener('click', function (e) {
+    var btn = e.target.closest('.ftab');
+    if (!btn) return;
+    activeFilter = btn.dataset.filter;
+    document.querySelectorAll('.ftab').forEach(function (t) { t.classList.remove('active'); });
+    btn.classList.add('active');
+    filterRows();
+  });
+
+  searchInput.addEventListener('input', filterRows);
+
+  function filterRows() {
+    var q = searchInput.value.toLowerCase();
+    document.querySelectorAll('#tableBody tr').forEach(function (tr) {
+      tr.style.display = (tr.dataset.name.includes(q) && (activeFilter === 'all' || tr.dataset.status === activeFilter)) ? '' : 'none';
+    });
+  }
+
+  exportBtn.addEventListener('click', function () {
+    var date = new Date().toLocaleDateString('fr-FR').replace(/\//g, '-');
+    var rows = [['Nom', 'Statut', 'Confiance', 'Date']];
+    document.querySelectorAll('#tableBody tr').forEach(function (tr) {
+      var tds = tr.querySelectorAll('td');
+      rows.push([
+        tds[1] ? tds[1].textContent.trim() : '',
+        tr.dataset.status === 'present' ? 'Présent' : 'Absent',
+        tr.dataset.status === 'present' ? (tds[3] ? tds[3].textContent.trim() : '') : '—',
+        date
+      ]);
+    });
+    var csv  = rows.map(function (r) { return r.map(function (v) { return '"' + v + '"'; }).join(','); }).join('\n');
+    var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    var a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = 'presence_' + date + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+})();
+</script>
+</body>
+</html>
